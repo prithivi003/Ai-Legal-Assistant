@@ -6,6 +6,7 @@ from rag.retriever import load_vector_store, get_retriever
 from rag.llm import get_llm
 from rag.pipeline import generate_answer
 from rag.summary import generate_structured_summary
+from rag.contribution import extract_contributions
 
 
 
@@ -137,3 +138,19 @@ elif page == "My Paper Assistant":
 
                 st.subheader("Structured Summary")
                 st.write(summary)
+
+        if st.button("🧠 Extract Key Contributions"):
+
+            vectorstore = load_vector_store("vector_store/session_db")
+
+            retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
+            docs = retriever.invoke("What are the key contributions of this paper?")
+
+            if not docs:
+                st.warning("Unable to retrieve content for contribution extraction.")
+            else:
+                  llm = get_llm()
+                  contributions = extract_contributions(llm, docs)
+
+                  st.subheader("Key Contributions")
+                  st.write(contributions)        
