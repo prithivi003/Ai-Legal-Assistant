@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚖️ Legal AI Assistant
+# ⚖️ Ai-Legal-Assistant
 
 ### AI-Powered Legal Information System Using RAG
 
@@ -45,8 +45,8 @@ User Query
          ▼
 ┌──────────────────┐     ┌────────────────────┐
 │  HuggingFace     │────▶│  Pinecone Vector   │
-│  Embeddings      │     │  Database           │
-│  (MiniLM-L6-v2)  │     │  (Semantic Search)  │
+│  Embeddings      │     │  Database          │
+│  (MiniLM-L6-v2)  │     │  (Semantic Search) │
 └──────────────────┘     └────────┬───────────┘
                                   │
                                   ▼
@@ -64,7 +64,7 @@ User Query
                                   ▼
                          ┌────────────────────┐
                          │  Streamlit UI      │
-                         │  (Answer + Sources) │
+                         │  (Answer + Sources)│
                          └────────────────────┘
 ```
 
@@ -81,8 +81,8 @@ User Query
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/ai-research-intelligence.git
-cd ai-research-intelligence
+git clone https://github.com/prithivi003/Ai-Legal-Assistant.git
+cd Ai-Legal-Assistant
 ```
 
 ### 2. Create a Virtual Environment
@@ -141,14 +141,18 @@ The app will open at `http://localhost:8501` 🎉
 
 ## 📁 Project Structure
 
-```
-ai-research-intelligence/
-│
+```text
+Ai-Legal-Assistant/
 ├── app.py                      # Main Streamlit application (UI + query handling)
 ├── build_pinecone_index.py     # Script to ingest PDFs and build vector index
 ├── requirements.txt            # Python dependencies
 ├── .env                        # Environment variables (not tracked)
-├── .gitignore
+├── .gitignore                  # Ignored files for version control
+│
+├── ai_research_platform/       # AI Research Modules
+├── config/                     # Configuration/settings directories
+├── features/                   # Additional Features & Extensions
+├── ui/                         # User Interface specific components
 │
 ├── rag/                        # RAG pipeline components
 │   ├── loader.py               # Loads PDFs using LangChain PyPDFLoader
@@ -158,15 +162,15 @@ ai-research-intelligence/
 │   ├── pipeline.py             # Constructs prompt and generates LLM answer
 │   └── llm.py                  # Initializes Groq LLM (Llama 3.1 8B Instant)
 │
-├── services/                   # Service layer
+├── services/                   # Service layer interacting with external APIs
 │   ├── vector_service.py       # Pinecone client initialization, upsert & delete ops
 │   ├── metadata_service.py     # Document metadata handling
 │   └── storage_service.py      # File storage utilities
 │
-├── utils/                      # Utilities
+├── utils/                      # Helper Utilities
 │   └── intent_filter.py        # Simple intent detection (greeting vs legal query)
 │
-└── data/
+└── data/                       # Data storage
     ├── legal_documents/        # Place legal PDF files here
     └── session_uploads/        # Temporary user uploads
 ```
@@ -238,5 +242,3 @@ This project is open source and available under the [MIT License](LICENSE).
 **Built with** ❤️ **using Streamlit · Pinecone · Groq · LangChain**
 
 </div>
-#   A i - L e g a l - A s s i s t a n t  
- 

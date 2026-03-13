@@ -1,6 +1,25 @@
+# Virtual Environments
 venv/
-__pycache__/
-vector_store/
-data/session_uploads/
+env/
 .env
-*.pyc
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary Uploads
+data/session_uploads/
+
+# OS / Editor Files
+.DS_Store
+.idea/
+.vscode/
+
+# Streamlit
+.streamlit/
+
+# Testing/Coverage
+.pytest_cache/
+htmlcov/
+.coverage
