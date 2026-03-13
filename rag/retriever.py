@@ -1,16 +1,33 @@
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from rag.embedder import embed_text
+from services.vector_service import index
 
-def load_vector_store(path):
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2"
-    )
-    return FAISS.load_local(
-    path,
-    embeddings,
-    allow_dangerous_deserialization=True)
 
-def get_retriever(vectorstore):
-    return vectorstore.as_retriever(
-        search_kwargs={"k": 4}
+def retrieve_documents(query, namespace="legal_kb", top_k=5):
+
+    query_embedding = embed_text(query)
+
+    results = index.query(
+        vector=query_embedding,
+        top_k=top_k,
+        include_metadata=True,
+        namespace=namespace
     )
+
+    print("DEBUG Pinecone results:")
+    print(results)
+
+    docs = []
+
+    for match in results.matches:
+
+        if match.metadata and "text" in match.metadata:
+
+            docs.append({
+                "text": match.metadata.get("text"),
+                "source": match.metadata.get("source"),
+                "page": match.metadata.get("page")
+            })
+
+    print("DEBUG docs returned:", len(docs))
+
+    return docs

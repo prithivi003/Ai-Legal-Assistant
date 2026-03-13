@@ -1,156 +1,225 @@
 import streamlit as st
+import os
+import shutil
+
 from rag.loader import load_pdfs_from_folder
 from rag.chunker import chunk_documents
-from rag.embedder import create_vector_store
-from rag.retriever import load_vector_store, get_retriever
+from rag.embedder import embed_text
+from rag.retriever import retrieve_documents
 from rag.llm import get_llm
 from rag.pipeline import generate_answer
 from rag.summary import generate_structured_summary
 from rag.contribution import extract_contributions
+from utils.intent_filter import detect_intent
+
+from services.vector_service import upsert_embedding, clear_namespace
 
 
+st.set_page_config(page_title="Legal AI Assistant", layout="wide")
 
-
-st.set_page_config(page_title="AI Research Intelligence Platform", layout="wide")
+# -----------------------------
+# Sidebar Navigation
+# -----------------------------
 
 st.sidebar.title("Navigation")
 
 page = st.sidebar.radio(
     "Go to",
-    ["Home", "AI Research Chatbot", "My Paper Assistant", "Settings"]
+    ["Legal AI Assistant", "Document Analyzer"]
 )
-if page == "AI Research Chatbot":
-    st.title("🤖 Global AI Research Chatbot")
 
-    if st.button("Build Global Knowledge Base"):
-        docs = load_pdfs_from_folder("data/global_papers")
-        chunks = chunk_documents(docs)
-        create_vector_store(chunks, "vector_store/global_db")
-        st.success("Global Knowledge Base Created!")
+# =========================================================
+# ⚖️ LEGAL AI ASSISTANT
+# =========================================================
 
-    query = st.text_input("Ask a research question")
+if page == "Legal AI Assistant":
+
+    st.title("⚖️ Legal AI Assistant")
+
+    query = st.text_input("Ask a legal question")
 
     if query:
-        vectorstore = load_vector_store("vector_store/global_db")
-        retriever = get_retriever(vectorstore)
-        docs = retriever.invoke(query)
+
+        intent = detect_intent(query)
+
+        # Greeting
+        if intent == "greeting":
+            st.write(
+                "Hello! 👋 You can ask questions about legal procedures such as filing complaints, tenant rights, employment disputes, or consumer complaints."
+            )
+            st.stop()
+
+        # Retrieve from legal knowledge base
+        docs = retrieve_documents(query, namespace="legal_kb")
 
         if not docs:
-            st.warning("No relevant research content found.")
+            st.warning("No relevant legal information found.")
         else:
+
             llm = get_llm()
             answer = generate_answer(llm, query, docs)
 
             st.subheader("Answer")
             st.write(answer)
 
-            st.subheader("Sources")
+            # Sources
+            with st.expander("🔎 See Sources Used to Generate Answer"):
 
-            unique_sources = set()
+                for doc in docs:
 
-            for doc in docs:
-                source_path = doc.metadata.get("source", "Unknown")
-                page_label = doc.metadata.get("page_label", None)
-                file_name = source_path.split("\\")[-1]
-                unique_sources.add((file_name, page_label))
+                    source = doc.get("source", "Unknown document")
+                    page_num = doc.get("page")
 
-            for file_name, page_label in unique_sources:
-                if page_label:
-                    st.write(f"- {file_name} (Page {page_label})")
-                else:
-                    st.write(f"- {file_name}")
-elif page == "My Paper Assistant":
+                    if page_num:
+                        st.markdown(f"**Source:** {source} (Page {page_num})")
+                    else:
+                        st.markdown(f"**Source:** {source}")
 
-    import os
-    import shutil
+                    st.write(doc["text"])
+                    st.divider()
 
-    st.title("📄 My Paper Assistant")
+
+# =========================================================
+# 📄 DOCUMENT ANALYZER
+# =========================================================
+
+elif page == "Document Analyzer":
+
+    st.title("📄 Legal Document Analyzer")
 
     uploaded_file = st.file_uploader(
-        "Upload a research paper (PDF)",
+        "Upload a legal document (PDF)",
         type="pdf"
     )
 
-    if uploaded_file:
+    # ==============================
+    # One-time indexing (runs only on first upload)
+    # ==============================
 
-        #  Step 1: Clear old uploaded files
+    if uploaded_file and "doc_indexed" not in st.session_state:
+
+        # Clear previous uploads
         if os.path.exists("data/session_uploads"):
             shutil.rmtree("data/session_uploads")
 
         os.makedirs("data/session_uploads", exist_ok=True)
 
-        #  Step 2: Save uploaded file
         file_path = os.path.join("data/session_uploads", uploaded_file.name)
 
         with open(file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
 
-        st.success("File uploaded and saved successfully!")
+        st.success("File uploaded successfully!")
 
-        #  Step 3: Clear old session vector DB
-        if os.path.exists("vector_store/session_db"):
-            shutil.rmtree("vector_store/session_db")
+        # Clear Pinecone namespace
+        clear_namespace("session_docs")
 
-        #  Step 4: Build new session vector store
+        # Load & chunk document
         docs = load_pdfs_from_folder("data/session_uploads")
         chunks = chunk_documents(docs)
-        create_vector_store(chunks, "vector_store/session_db")
 
-        st.success("Session Knowledge Base Built!")
+        st.success("Document processed!")
 
-        # -------------------------------
-        # 🔵 QUESTION & ANSWER SECTION
-        # -------------------------------
+        # Index chunks
+        for i, chunk in enumerate(chunks):
 
-        query = st.text_input("Ask a question about this paper")
+            text = str(chunk.page_content)
+
+            if len(text.strip()) < 40:
+                continue
+
+            embedding = embed_text(text)
+
+            doc_id = f"session_doc_{i}"
+
+            upsert_embedding(
+                doc_id,
+                embedding,
+                text,
+                source=uploaded_file.name,
+                page=chunk.metadata.get("page"),
+                namespace="session_docs"
+            )
+
+        st.success("Document indexed! You can now ask questions below.")
+        st.session_state.doc_indexed = True
+
+    # ==============================
+    # Q&A + Analysis (persists across Streamlit reruns)
+    # ==============================
+
+    if "doc_indexed" in st.session_state:
+
+        # Reset button to allow re-uploading
+        if st.button("🔄 Reset / Upload New Document"):
+            del st.session_state["doc_indexed"]
+            st.rerun()
+
+        query = st.text_input("Ask a question about this document")
 
         if query:
-            vectorstore = load_vector_store("vector_store/session_db")
-            retriever = get_retriever(vectorstore)
-            docs = retriever.invoke(query)
+
+            docs = retrieve_documents(query, namespace="session_docs")
 
             if not docs:
-                st.warning("No relevant content found in this paper.")
+                st.warning("No relevant content found.")
             else:
+
                 llm = get_llm()
                 answer = generate_answer(llm, query, docs)
 
                 st.subheader("Answer")
                 st.write(answer)
 
-        # -------------------------------
-        # 🔵 STRUCTURED SUMMARY SECTION
-        # -------------------------------
+                with st.expander("🔎 See Sources Used to Generate Answer"):
 
-        if st.button("📑 Generate Structured Summary"):
+                    for doc in docs:
 
-            vectorstore = load_vector_store("vector_store/session_db")
+                        source = doc.get("source", "Uploaded document")
+                        page_num = doc.get("page")
 
-            # Increase retrieval depth for summary
-            retriever = vectorstore.as_retriever(search_kwargs={"k": 12})
-            docs = retriever.invoke("Summarize the entire research paper")
+                        if page_num:
+                            st.markdown(f"**Source:** {source} (Page {page_num})")
+                        else:
+                            st.markdown(f"**Source:** {source}")
 
-            if not docs:
-                st.warning("Unable to retrieve sufficient content for summary.")
-            else:
+                        st.write(doc["text"])
+                        st.divider()
+
+        # ==============================
+        # Structured Summary
+        # ==============================
+
+        if st.button("Generate Structured Summary"):
+
+            docs = retrieve_documents(
+                "Summarize the entire document",
+                namespace="session_docs"
+            )
+
+            if docs:
+
                 llm = get_llm()
                 summary = generate_structured_summary(llm, docs)
 
                 st.subheader("Structured Summary")
                 st.write(summary)
 
-        if st.button("🧠 Extract Key Contributions"):
+        # ==============================
+        # Key Points
+        # ==============================
 
-            vectorstore = load_vector_store("vector_store/session_db")
+        if st.button("Extract Key Points"):
 
-            retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
-            docs = retriever.invoke("What are the key contributions of this paper?")
+            docs = retrieve_documents(
+                "What are the key points of this document?",
+                namespace="session_docs"
+            )
 
-            if not docs:
-                st.warning("Unable to retrieve content for contribution extraction.")
-            else:
-                  llm = get_llm()
-                  contributions = extract_contributions(llm, docs)
+            if docs:
 
-                  st.subheader("Key Contributions")
-                  st.write(contributions)        
+                llm = get_llm()
+                contributions = extract_contributions(llm, docs)
+
+                st.subheader("Key Points")
+                st.write(contributions)

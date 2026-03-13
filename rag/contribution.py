@@ -1,6 +1,6 @@
 def extract_contributions(llm, docs):
 
-    context = "\n\n".join([doc.page_content for doc in docs])
+    context = "\n\n".join([doc["text"] for doc in docs])
 
     prompt = f"""
 You are an AI research analyst.

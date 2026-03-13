@@ -1,7 +1,7 @@
 def generate_structured_summary(llm, docs):
 
     # Combine all retrieved chunks into one context string
-    context = "\n\n".join([doc.page_content for doc in docs])
+    context = "\n\n".join([doc["text"] for doc in docs])
 
     prompt = f"""
 You are a senior AI research analyst.
