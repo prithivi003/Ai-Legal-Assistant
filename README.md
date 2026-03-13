@@ -14,7 +14,7 @@
 
 ---
 
-[Features](#-features) · [Architecture](#-architecture) · [Quick Start](#-quick-start) · [Project Structure](#-project-structure) · [API Keys](#-api-keys-required) · [License](#-license)
+[Features](#-features) · [Architecture](#-architecture) · [Quick Start](#-quick-start) · [Project Structure](#-project-structure) · [API Keys](#-api-keys-required)
 
 </div>
 
@@ -228,14 +228,6 @@ The assistant can help with questions about:
 ## ⚠️ Disclaimer
 
 > This AI provides **general legal information only** and does **not** replace professional legal advice. Always consult a qualified lawyer for specific legal matters.
-
----
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
-
----
 
 <div align="center">
 
