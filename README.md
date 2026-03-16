@@ -10,7 +10,7 @@
 [![Pinecone](https://img.shields.io/badge/Pinecone-000000?style=for-the-badge&logo=pinecone&logoColor=white)](https://pinecone.io)
 [![Groq](https://img.shields.io/badge/Groq-F55036?style=for-the-badge&logo=groq&logoColor=white)](https://groq.com)
 
-> An intelligent legal information assistant that uses **Retrieval-Augmented Generation (RAG)** to answer questions about legal procedures, rights, and regulations — powered by Pinecone vector search, Groq LLM (Llama 3.1), and a premium dark-themed Streamlit interface.
+> An intelligent legal information assistant that uses **Retrieval-Augmented Generation (RAG)** supplemented by a **Model Context Protocol (MCP)** internet fallback to answer questions about legal procedures, rights, and regulations — powered by Pinecone vector search, DuckDuckGo live search, Groq LLM (Llama 3.1), and a premium dark-themed Streamlit interface.
 
 ---
 
@@ -23,6 +23,7 @@
 ## ✨ Features
 
 - 🔍 **Semantic Search** — Retrieves the most relevant legal documents using vector similarity search via Pinecone
+- 🌐 **MCP Internet Fallback** — Uses DuckDuckGo to search the live internet via an MCP Server (`mcp_legal_server.py`) when the RAG database misses the answer
 - 🤖 **AI-Powered Answers** — Generates clear, step-by-step legal guidance using Groq's Llama 3.1 LLM
 - 📄 **PDF Ingestion Pipeline** — Automatically loads, chunks, embeds, and indexes legal PDF documents
 - 🎨 **Premium Dark UI** — Sleek glassmorphism design with smooth animations and gradient accents
@@ -39,33 +40,37 @@ User Query
     │
     ▼
 ┌──────────────────┐
-│  Intent Filter   │  ← Detects greetings vs legal queries
+│  Intent Filter   │  ← Detects greetings/farewells vs legal queries
 └────────┬─────────┘
          │
          ▼
 ┌──────────────────┐     ┌────────────────────┐
 │  HuggingFace     │────▶│  Pinecone Vector   │
-│  Embeddings      │     │  Database          │
-│  (MiniLM-L6-v2)  │     │  (Semantic Search) │
+│  Embeddings      │     │  Database (RAG)    │
 └──────────────────┘     └────────┬───────────┘
                                   │
-                                  ▼
-                         ┌────────────────────┐
-                         │  Retrieved Context │
-                         │  (Top-K Documents) │
-                         └────────┬───────────┘
-                                  │
-                                  ▼
-                         ┌────────────────────┐
-                         │  Groq LLM          │
-                         │  (Llama 3.1 8B)    │
-                         └────────┬───────────┘
-                                  │
-                                  ▼
-                         ┌────────────────────┐
-                         │  Streamlit UI      │
-                         │  (Answer + Sources)│
-                         └────────────────────┘
+                   ┌──────────────┴───────────────┐
+                   │                              │
+          [Context Found]                  [Context Missed]
+                   │                              │
+                   ▼                              ▼
+        ┌────────────────────┐         ┌────────────────────┐
+        │  Groq LLM Context  │         │ MCP Search Server  │
+        │  (Top-K Documents) │         │ (DuckDuckGo Search)│
+        └────────┬───────────┘         └────────┬───────────┘
+                 │                              │
+                 └──────────────┬───────────────┘
+                                ▼
+                       ┌────────────────────┐
+                       │  Groq LLM Setup    │
+                       │  (Llama 3.1 8B)    │
+                       └────────┬───────────┘
+                                │
+                                ▼
+                       ┌────────────────────┐
+                       │  Streamlit UI      │
+                       │ (Answer + Sources) │
+                       └────────────────────┘
 ```
 
 ---
@@ -144,6 +149,7 @@ The app will open at `http://localhost:8501` 🎉
 ```text
 Ai-Legal-Assistant/
 ├── app.py                      # Main Streamlit application (UI + query handling)
+├── mcp_legal_server.py         # MCP server providing DuckDuckGo internet fallback tool
 ├── build_pinecone_index.py     # Script to ingest PDFs and build vector index
 ├── requirements.txt            # Python dependencies
 ├── .env                        # Environment variables (not tracked)
@@ -207,6 +213,7 @@ The application features a **premium dark theme** with:
 | **LLM** | Groq (Llama 3.1 8B Instant) |
 | **Embeddings** | HuggingFace `sentence-transformers/all-MiniLM-L6-v2` |
 | **Vector DB** | Pinecone |
+| **Agent fallback** | MCP Server (`mcp`, `duckduckgo_search`/`ddgs`) |
 | **Framework** | LangChain |
 | **PDF Parsing** | PyPDFLoader |
 | **Text Splitting** | RecursiveCharacterTextSplitter |
