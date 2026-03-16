@@ -4,11 +4,7 @@
 
 ### AI-Powered Legal Information System Using RAG
 
-[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io)
-[![LangChain](https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)](https://langchain.com)
-[![Pinecone](https://img.shields.io/badge/Pinecone-000000?style=for-the-badge&logo=pinecone&logoColor=white)](https://pinecone.io)
-[![Groq](https://img.shields.io/badge/Groq-F55036?style=for-the-badge&logo=groq&logoColor=white)](https://groq.com)
+
 
 > An intelligent legal information assistant that uses **Retrieval-Augmented Generation (RAG)** supplemented by a **Model Context Protocol (MCP)** internet fallback to answer questions about legal procedures, rights, and regulations — powered by Pinecone vector search, DuckDuckGo live search, Groq LLM (Llama 3.1), and a premium dark-themed Streamlit interface.
 
@@ -80,8 +76,8 @@ User Query
 ### Prerequisites
 
 - Python 3.10+
-- [Pinecone](https://pinecone.io) account (free tier works)
-- [Groq](https://console.groq.com) API key (free tier available)
+- Pinecone account (free tier works)
+- Groq API key (free tier available)
 
 ### 1. Clone the Repository
 
@@ -187,8 +183,8 @@ Ai-Legal-Assistant/
 
 | Service | Purpose | Get Key |
 |---------|---------|---------|
-| **Groq** | LLM inference (Llama 3.1 8B) | [console.groq.com](https://console.groq.com) |
-| **Pinecone** | Vector database for semantic search | [pinecone.io](https://app.pinecone.io) |
+| **Groq** | LLM inference (Llama 3.1 8B) | console.groq.com |
+| **Pinecone** | Vector database for semantic search | app.pinecone.io |
 
 > **Note:** Both services offer generous free tiers sufficient for development and small-scale usage.
 
