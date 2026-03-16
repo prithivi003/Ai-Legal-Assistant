@@ -1,8 +1,8 @@
-import streamlit as st
-from rag.retriever import retrieve_documents
-from rag.llm import get_llm
-from rag.pipeline import generate_answer
-from utils.intent_filter import detect_intent
+import streamlit as st  # type: ignore
+from rag.retriever import retrieve_documents  # type: ignore
+from rag.llm import get_llm  # type: ignore
+from rag.pipeline import generate_answer  # type: ignore
+from utils.intent_filter import detect_intent  # type: ignore
 
 
 # =========================================================
@@ -384,6 +384,8 @@ if "user_query" in st.session_state:
     del st.session_state["user_query"]
 
 
+from mcp_legal_server import search_indian_law  # type: ignore
+
 # =========================================================
 # Query Processing
 # =========================================================
@@ -403,34 +405,61 @@ if query:
         </div>
         """, unsafe_allow_html=True)
         st.stop()
+        
+    # --- Farewell ---
+    elif intent == "farewell":
+        st.markdown("""
+        <div class="greeting-card">
+            <p style="font-size: 1.8rem; margin-bottom: 0.5rem;">👋</p>
+            <p>Goodbye! Stay safe and feel free to return if you have any more legal questions.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.stop()
 
-    # --- Retrieve & Answer ---
+    # --- Retrieve & Answer (RAG) ---
     with st.spinner("Searching legal knowledge base..."):
         docs = retrieve_documents(query, namespace="legal_kb")
 
-    if not docs:
-        st.markdown("""
-        <div class="warning-box">
-            <p>⚠️ No relevant legal information found for your query. Try rephrasing
-            or ask about a specific legal procedure.</p>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        llm = get_llm()
+    llm = get_llm()
+    answer = "NOT_IN_RAG"
 
-        with st.spinner("Generating answer..."):
+    if docs:
+        with st.spinner("Analyzing legal documents..."):
             answer = generate_answer(llm, query, docs)
+            
+    # --- FALLBACK TO INTERNET (MCP) ---
+    if not docs or "NOT_IN_RAG" in answer:
+        with st.spinner("Knowledge base missed. Searching internet via MCP..."):
+            internet_results = search_indian_law(query, max_results=3)
+            
+            # Ask LLM to format the raw duckduckgo search results
+            fallback_prompt = f"Using ONLY these internet search results, answer the user's question clearly and simply about Indian law. \n\nResults:\n{internet_results}\n\nQuestion:\n{query}\n\n⚠️ End with a legal disclaimer."
+            answer = llm.invoke(fallback_prompt).content
+            
+            # Clear docs so we render the MCP source card instead of RAG sources
+            docs = []
+            mcp_used = True
+    else:
+        mcp_used = False
 
-        # --- Display Answer ---
-        st.markdown(f"""
-        <div class="answer-card">
-            <div class="answer-label">✦ Answer</div>
-            <div class="answer-text">{answer}</div>
-        </div>
-        """, unsafe_allow_html=True)
+    # --- Display Answer ---
+    st.markdown(f"""
+    <div class="answer-card">
+        <div class="answer-label">✦ Answer</div>
+        <div class="answer-text">{answer}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        # --- Display Sources ---
-        with st.expander("🔎  View Sources Used to Generate This Answer"):
+    # --- Display Sources ---
+    with st.expander("🔎  View Sources Used to Generate This Answer"):
+        if mcp_used:
+            st.markdown(f"""
+            <div class="source-card">
+                <div class="source-badge" style="background: linear-gradient(135deg, #ff7e5f, #feb47b);">🌐 Internet Search (MCP Tool)</div>
+                <div class="source-text">This answer was generated using live internet search results via the MCP server because it was not found in the local knowledge base.</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
             for i, doc in enumerate(docs):
                 source = doc.get("source", "Unknown document")
                 page_num = doc.get("page")
@@ -450,7 +479,7 @@ if query:
 
 st.markdown("""
 <div class="custom-footer">
-    Built with Streamlit · Pinecone · Groq LLM · LangChain<br>
+    Built with Streamlit · Pinecone · Groq LLM · LangChain · MCP<br>
     ⚖️ Legal AI Assistant — For informational purposes only
 </div>
 """, unsafe_allow_html=True)
