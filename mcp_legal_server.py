@@ -1,7 +1,13 @@
 import httpx  # type: ignore
 from bs4 import BeautifulSoup  # type: ignore
 from mcp.server.fastmcp import FastMCP  # type: ignore
-from ddgs import DDGS  # type: ignore
+from dotenv import load_dotenv
+try:
+    from ddgs import DDGS  # type: ignore  # newer package name (Streamlit Cloud)
+except ImportError:
+    from duckduckgo_search import DDGS  # type: ignore  # older package name (local)
+
+load_dotenv()
 
 # Create an MCP server
 mcp = FastMCP("Internet Legal Assistant")
@@ -9,33 +15,33 @@ mcp = FastMCP("Internet Legal Assistant")
 # Initialize DuckDuckGo Search
 ddgs = DDGS()
 
+
 @mcp.tool()
 def search_indian_law(query: str, max_results: int = 5) -> str:
     """
-    Search the internet for legal information, precedents, and procedures.
+    Search the internet for legal information, precedents, and procedures
+    using DuckDuckGo.
     Always prefix searches with "Indian law" to ensure accurate regional results.
-    
+
     Args:
         query: The legal search term or question to look up.
         max_results: The maximum number of search results to return (default 5).
     """
+    search_query = f"{query} Indian law"
+
     try:
-        # Append "Indian law" to implicitly target Indian law context
-        search_query = f"{query} Indian law"
-        
-        # Perform the search
         results = [r for r in ddgs.text(search_query, max_results=max_results)]
-        
+
         if not results:
             return "No relevant legal information found for this query on the internet."
-            
-        formatted_results = "Here are the top web search results for your query:\n\n"
+
+        formatted = "Here are the top web search results:\n\n"
         for i, res in enumerate(results, 1):
-            formatted_results += f"[{i}] {res['title']}\n"
-            formatted_results += f"Source: {res['href']}\n"
-            formatted_results += f"Summary: {res['body']}\n\n"
-            
-        return formatted_results
+            formatted += f"[{i}] {res['title']}\n"
+            formatted += f"Source: {res['href']}\n"
+            formatted += f"Summary: {res['body']}\n\n"
+
+        return formatted
     except Exception as e:
         return f"Error performing web search: {str(e)}"
 

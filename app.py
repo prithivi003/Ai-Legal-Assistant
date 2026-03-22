@@ -342,6 +342,7 @@ with st.sidebar:
     for q in sample_questions:
         if st.button(f"→  {q}", key=f"sample_{q}", use_container_width=True):
             st.session_state["user_query"] = q
+            st.rerun()
 
     st.markdown("""
     <hr style="border: none; border-top: 1px solid rgba(100,100,255,0.1); margin: 1rem 0;">
@@ -349,6 +350,11 @@ with st.sidebar:
         ⚠️ This AI provides general legal information<br>and does not replace professional legal advice.
     </div>
     """, unsafe_allow_html=True)
+
+    st.markdown('<hr style="border: none; border-top: 1px solid rgba(100,100,255,0.1); margin: 1rem 0;">', unsafe_allow_html=True)
+    if st.button("🗑️  Clear Chat History", use_container_width=True):
+        st.session_state.chat_history = []
+        st.rerun()
 
 
 # =========================================================
@@ -364,24 +370,31 @@ st.markdown("""
 
 
 # =========================================================
-# Search Input
+# Chat History Setup
 # =========================================================
 
-# Prefill from sidebar sample question if clicked
-default_query = st.session_state.get("user_query", "")
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
-st.markdown('<div class="search-container">', unsafe_allow_html=True)
-query = st.text_input(
-    "Ask a legal question",
-    value=default_query,
-    placeholder="e.g. How do I file an FIR in India?",
-    label_visibility="collapsed"
-)
-st.markdown('</div>', unsafe_allow_html=True)
+# Display all previous chat messages
+for msg in st.session_state.chat_history:
+    with st.chat_message(msg["role"], avatar="👤" if msg["role"] == "user" else "⚖️"):
+        if msg["role"] == "assistant":
+            st.markdown(f"""
+            <div class="answer-card">
+                <div class="answer-label">✦ Answer</div>
+                <div class="answer-text">{msg["content"]}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(msg["content"])
 
-# Clear the session state after using it
+# Handle sidebar sample question clicks
 if "user_query" in st.session_state:
+    query = st.session_state["user_query"]
     del st.session_state["user_query"]
+else:
+    query = st.chat_input("Ask a legal question... e.g. How do I file an FIR in India?")
 
 
 from mcp_legal_server import search_indian_law  # type: ignore
@@ -396,81 +409,135 @@ if query:
 
     # --- Greeting ---
     if intent == "greeting":
-        st.markdown("""
-        <div class="greeting-card">
-            <p style="font-size: 1.8rem; margin-bottom: 0.5rem;">👋</p>
-            <p>Hello! Welcome to the <strong>Legal AI Assistant</strong>.<br>
-            You can ask about legal procedures such as filing complaints,
-            tenant rights, employment disputes, or consumer complaints.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        st.stop()
+        greeting_response = "👋 Hello! Welcome to the **Legal AI Assistant**. You can ask about legal procedures such as filing complaints, tenant rights, employment disputes, or consumer complaints."
+        st.session_state.chat_history.append({"role": "user", "content": query})
+        st.session_state.chat_history.append({"role": "assistant", "content": greeting_response})
+        st.rerun()
         
     # --- Farewell ---
     elif intent == "farewell":
-        st.markdown("""
-        <div class="greeting-card">
-            <p style="font-size: 1.8rem; margin-bottom: 0.5rem;">👋</p>
-            <p>Goodbye! Stay safe and feel free to return if you have any more legal questions.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        st.stop()
+        farewell_response = "👋 Goodbye! Stay safe and feel free to return if you have any more legal questions."
+        st.session_state.chat_history.append({"role": "user", "content": query})
+        st.session_state.chat_history.append({"role": "assistant", "content": farewell_response})
+        st.rerun()
+
+    # --- Add user message to history and display it ---
+    st.session_state.chat_history.append({"role": "user", "content": query})
+    with st.chat_message("user", avatar="👤"):
+        st.markdown(query)
 
     # --- Retrieve & Answer (RAG) ---
-    with st.spinner("Searching legal knowledge base..."):
-        docs = retrieve_documents(query, namespace="legal_kb")
+    with st.chat_message("assistant", avatar="⚖️"):
 
-    llm = get_llm()
-    answer = "NOT_IN_RAG"
+        llm = get_llm()
 
-    if docs:
-        with st.spinner("Analyzing legal documents..."):
-            answer = generate_answer(llm, query, docs)
-            
-    # --- FALLBACK TO INTERNET (MCP) ---
-    if not docs or "NOT_IN_RAG" in answer:
-        with st.spinner("Knowledge base missed. Searching internet via MCP..."):
-            internet_results = search_indian_law(query, max_results=3)
-            
-            # Ask LLM to format the raw duckduckgo search results
-            fallback_prompt = f"Using ONLY these internet search results, answer the user's question clearly and simply about Indian law. \n\nResults:\n{internet_results}\n\nQuestion:\n{query}\n\n⚠️ End with a legal disclaimer."
-            answer = llm.invoke(fallback_prompt).content
-            
-            # Clear docs so we render the MCP source card instead of RAG sources
-            docs = []
-            mcp_used = True
-    else:
-        mcp_used = False
+        # --- STEP 1: Rewrite follow-up queries into standalone questions ---
+        # This is critical for conversation continuity: if the user says
+        # "tell me more about point 3", we rewrite it to a full standalone
+        # query like "detailed explanation of police station procedure for
+        # filing FIR in India" using the conversation context.
+        search_query = query  # default: use original query
+        if len(st.session_state.chat_history) > 2:
+            # Build recent conversation context (last 3 exchanges max)
+            recent_history = st.session_state.chat_history[-7:]  # ~3 exchanges + current
+            history_for_rewrite = ""
+            for msg in recent_history:
+                role = "User" if msg["role"] == "user" else "Assistant"
+                # Truncate long assistant responses to keep prompt manageable
+                content = msg["content"][:1500] if msg["role"] == "assistant" else msg["content"]
+                history_for_rewrite += f"{role}: {content}\n"
 
-    # --- Display Answer ---
-    st.markdown(f"""
-    <div class="answer-card">
-        <div class="answer-label">✦ Answer</div>
-        <div class="answer-text">{answer}</div>
-    </div>
-    """, unsafe_allow_html=True)
+            rewrite_prompt = f"""Given the following conversation history, rewrite the user's latest question into a standalone, self-contained search query. The rewritten query should include all necessary context from the conversation so that someone reading ONLY the rewritten query would fully understand what is being asked.
 
-    # --- Display Sources ---
-    with st.expander("🔎  View Sources Used to Generate This Answer"):
-        if mcp_used:
-            st.markdown(f"""
-            <div class="source-card">
-                <div class="source-badge" style="background: linear-gradient(135deg, #ff7e5f, #feb47b);">🌐 Internet Search (MCP Tool)</div>
-                <div class="source-text">This answer was generated using live internet search results via the MCP server because it was not found in the local knowledge base.</div>
-            </div>
-            """, unsafe_allow_html=True)
+If the latest question is already a standalone question (not a follow-up), return it as-is.
+
+Conversation:
+{history_for_rewrite}
+
+IMPORTANT: Return ONLY the rewritten query, nothing else. No explanation, no quotes, no prefix."""
+
+            try:
+                rewritten = llm.invoke(rewrite_prompt).content.strip().strip('"').strip("'")
+                if rewritten and len(rewritten) > 5:
+                    search_query = rewritten
+            except Exception:
+                search_query = query  # fallback to original on any error
+
+        with st.spinner("Searching legal knowledge base..."):
+            docs = retrieve_documents(search_query, namespace="legal_kb")
+
+        answer = "NOT_IN_RAG"
+
+        if docs:
+            with st.spinner("Analyzing legal documents..."):
+                answer = generate_answer(llm, query, docs, chat_history=st.session_state.chat_history)
+                
+        # --- FALLBACK TO INTERNET (MCP) ---
+        if not docs or "NOT_IN_RAG" in answer:
+            with st.spinner("Knowledge base missed. Searching internet via MCP..."):
+                internet_results = search_indian_law(search_query, max_results=3)
+                
+                # Build history context for fallback prompt
+                history_text = ""
+                recent = st.session_state.chat_history[-10:]
+                for msg in recent:
+                    role = "User" if msg["role"] == "user" else "Assistant"
+                    history_text += f"{role}: {msg['content']}\n"
+                
+                # Ask LLM to format the raw duckduckgo search results
+                fallback_prompt = f"""Using ONLY these internet search results, answer the user's question clearly and simply about Indian law.
+
+{f"Previous Conversation:{chr(10)}{history_text}" if history_text else ""}
+
+Results:
+{internet_results}
+
+Current Question:
+{query}
+
+If the user is asking a follow-up question, use the conversation history above to understand context.
+
+⚠️ End with a legal disclaimer."""
+                answer = llm.invoke(fallback_prompt).content
+                
+                # Clear docs so we render the MCP source card instead of RAG sources
+                docs = []
+                mcp_used = True
         else:
-            for i, doc in enumerate(docs):
-                source = doc.get("source", "Unknown document")
-                page_num = doc.get("page")
-                page_label = f" · Page {page_num}" if page_num else ""
+            mcp_used = False
 
+        # --- Display Answer ---
+        st.markdown(f"""
+        <div class="answer-card">
+            <div class="answer-label">✦ Answer</div>
+            <div class="answer-text">{answer}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # --- Display Sources ---
+        with st.expander("🔎  View Sources Used to Generate This Answer"):
+            if mcp_used:
                 st.markdown(f"""
                 <div class="source-card">
-                    <div class="source-badge">📄 {source}{page_label}</div>
-                    <div class="source-text">{doc["text"]}</div>
+                    <div class="source-badge" style="background: linear-gradient(135deg, #ff7e5f, #feb47b);">🌐 Internet Search (MCP Tool)</div>
+                    <div class="source-text">This answer was generated using live internet search results via the MCP server because it was not found in the local knowledge base.</div>
                 </div>
                 """, unsafe_allow_html=True)
+            else:
+                for i, doc in enumerate(docs):
+                    source = doc.get("source", "Unknown document")
+                    page_num = doc.get("page")
+                    page_label = f" · Page {page_num}" if page_num else ""
+
+                    st.markdown(f"""
+                    <div class="source-card">
+                        <div class="source-badge">📄 {source}{page_label}</div>
+                        <div class="source-text">{doc["text"]}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+    # --- Save assistant response to history ---
+    st.session_state.chat_history.append({"role": "assistant", "content": answer})
 
 
 # =========================================================
